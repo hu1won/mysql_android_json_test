@@ -20,102 +20,75 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class MainActivity extends AppCompatActivity {
-    private static String IP_ADDRESS = "PHP서버주소";
-    private static String TAG = "그룹명";
-    private static String filename = "getjson.php";
-    private String mJsonString;
-    private TextView tvString;
-
-    MainActivity.GetData task;
-
+    // 데이터를 받아올 PHP 주소
+    String url = "http://192.168.0.16/getdata.php";
+    // 데이터를 보기위한 TextView
+    TextView tv;
+    // PHP를 읽어올때 사용할 변수
+    public GettingPHP gPHP;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        tvString = (TextView) findViewById(R.id.tvString);
 
-        //처음 시작될 때 AsyncTask 시작
-        task = new GetData();
-        task.execute("http://" + IP_ADDRESS + "/" + filename, "");
-    } //PHP주소로부터 데이터를 받아오는 함수
+        gPHP = new GettingPHP();
 
-    private class GetData extends AsyncTask<String, Void, String> {
-        ProgressDialog progressDialog;
-        String errorString = null;
-        private int LastInt;
+        tv = (TextView)findViewById(R.id.textView);
 
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            progressDialog = ProgressDialog.show(MainActivity.this, "Please Wait", null, true, true);
-        }
+        gPHP.execute(url);
+    }
 
-        @Override
-        protected void onPostExecute(String result) {
-            super.onPostExecute(result);
-            progressDialog.dismiss();
-            Log.d(TAG, "response - " + result);
-            mJsonString = result;
-            showResult();
-        }
+
+
+    class GettingPHP extends AsyncTask<String, Integer, String> {
 
         @Override
         protected String doInBackground(String... params) {
-            String serverURL = params[0];
-            String postParameters = params[1];
+            StringBuilder jsonHtml = new StringBuilder();
             try {
-                URL url = new URL(serverURL);
-                HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
-                httpURLConnection.setReadTimeout(5000);
-                httpURLConnection.setConnectTimeout(5000);
-                httpURLConnection.setRequestMethod("POST");
-                httpURLConnection.setDoInput(true);
-                httpURLConnection.connect();
-                OutputStream outputStream = httpURLConnection.getOutputStream();
-                outputStream.write(postParameters.getBytes("UTF-8"));
-                outputStream.flush();
-                outputStream.close();
-                int responseStatusCode = httpURLConnection.getResponseCode();
-                Log.d(TAG, "response code - " + responseStatusCode);
-                InputStream inputStream;
-                if (responseStatusCode == HttpURLConnection.HTTP_OK) {
-                    inputStream = httpURLConnection.getInputStream();
-                } else {
-                    inputStream = httpURLConnection.getErrorStream();
+                URL phpUrl = new URL(params[0]);
+                HttpURLConnection conn = (HttpURLConnection)phpUrl.openConnection();
+
+                if ( conn != null ) {
+                    conn.setConnectTimeout(10000);
+                    conn.setUseCaches(false);
+
+                    if ( conn.getResponseCode() == HttpURLConnection.HTTP_OK ) {
+                        BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+                        while ( true ) {
+                            String line = br.readLine();
+                            if ( line == null )
+                                break;
+                            jsonHtml.append(line + "\n");
+                        }
+                        br.close();
+                    }
+                    conn.disconnect();
                 }
-                InputStreamReader inputStreamReader = new InputStreamReader(inputStream, "UTF-8");
-                BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = bufferedReader.readLine()) != null) {
-                    sb.append(line);
-                }
-                bufferedReader.close();
-                return sb.toString().trim();
-            } catch (Exception e) {
-                Log.d(TAG, "GetData : Error ", e);
-                errorString = e.toString();
-                return null;
+            } catch ( Exception e ) {
+                e.printStackTrace();
             }
+            return jsonHtml.toString();
         }
 
-        private void showResult() {
-            String TAG_JSON = "그룹명";
-            String TAG_INDEX_NO = "field1";
-            String TAG_S_DATE = "field2";
-            String TAG_STIME = "field3";
-            String TAG_ETIME = "field4";
+        protected void onPostExecute(String str) {
             try {
-                JSONObject jsonObject = new JSONObject(mJsonString);
-                JSONArray jsonArray = jsonObject.getJSONArray(TAG_JSON);
-                LastInt = jsonArray.length();
-                for (int i = 0; i < jsonArray.length(); i++) {
-                    JSONObject item = jsonArray.getJSONObject(i);
-                    mJsonString = item.getString(TAG_INDEX_NO) + ", " + item.getString(TAG_S_DATE) + ", " + item.getString(TAG_STIME) + ", " + item.getString(TAG_ETIME);
+                // PHP에서 받아온 JSON 데이터를 JSON오브젝트로 변환
+                JSONObject jObject = new JSONObject(str);
+                // results라는 key는 JSON배열로 되어있다.
+                JSONArray results = jObject.getJSONArray("result");
+                String zz = "";
+
+
+
+                for ( int i = 0; i < results.length(); ++i ) {
+                    JSONObject temp = results.getJSONObject(i);
+                    zz +=temp.get("url");
+
                 }
-                tvString.setText(mJsonString);
+                tv.setText(zz);
             } catch (JSONException e) {
-                Log.d(TAG, "showResult : ", e);
+                e.printStackTrace();
             }
         }
     }
