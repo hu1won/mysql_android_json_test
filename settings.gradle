@@ -1,0 +1,2 @@
+include ':app'
+rootProject.name = "mysql_android_json_test"
